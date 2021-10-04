@@ -1,5 +1,6 @@
-from rdkit import Chem
 import math
+from rdkit import Chem
+from utils import sanitize_mol
 
 
 def remove_atoms(mol, atoms):
@@ -7,14 +8,13 @@ def remove_atoms(mol, atoms):
     for atom in sorted(atoms, reverse=True):
         mw.RemoveAtom(atom)
     return mw.GetMol()
-
+    
 
 def get_leaves(mol):
     """
     Finds peripheral atom or ring within the molecule.
     """    
     leaf_atoms = [[atom.GetIdx()] for atom in mol.GetAtoms() if (atom.GetDegree() == 1)]
-    # (atom.GetBonds()[0].GetBondType() is not Chem.rdchem.BondType.AROMATIC) # only include nonaromatic bond
 
     clusters = []
     for bond in mol.GetBonds():
@@ -70,6 +70,9 @@ def mcts_rollout(node, scoring_function, state_map):
         leaves = get_leaves(node.mol)
         for leaf in leaves:
             new_mol = remove_atoms(node.mol, leaf)
+            # check sanity
+            if not sanitize_mol(new_mol): continue
+                
             new_smi = Chem.MolToSmiles(new_mol)
             if new_smi in state_map:
                 new_node = state_map[new_smi]  # merge identical states
@@ -94,30 +97,46 @@ def mcts_rollout(node, scoring_function, state_map):
 def mcts(smiles, scoring_function, n_rollout, max_atoms, prop_delta):
             
     mol = Chem.MolFromSmiles(smiles)
-    Chem.Kekulize(mol, clearAromaticFlags=True)
+    if mol is None:
+        return None
     root = MCTSNode(mol, smiles)
     
     state_map = {}
     for _ in range(n_rollout):
         mcts_rollout(root, scoring_function, state_map)
 
-    nodes = [node for _, node in state_map.items() if node.mol.GetNumAtoms() <= max_atoms and node.P >= prop_delta]
-    rationales = [n.smi for n in nodes]
-    scores = [n.P for n in nodes]
+    data = [(node.smi, node.P) for _, node in state_map.items() if node.mol.GetNumAtoms() <= max_atoms and node.P >= prop_delta]
     
-    return rationales, scores
+    return data
+
+
+def read_active_data(filepath):
+    smiles_list = []
+    with open(filepath, 'r') as f:
+        next(f)
+        while True:
+            line = f.readline().rstrip('\n')
+            if line:
+                smiles, active = line.split(',')
+                if active == '1':
+                    smiles_list.append(smiles)
+            else:
+                break
+    return smiles_list
 
 
 if __name__ == '__main__':
     
     import argparse
+    import rdkit
     from metrics import get_scoring_function
+    lg = rdkit.RDLogger.logger() 
+    lg.setLevel(rdkit.RDLogger.CRITICAL) # mute warnings
     
     
     parser = argparse.ArgumentParser()
-#     parser.add_argument('--data', required=True)
-    parser.add_argument('--prop', type=str, default='qed')
-    parser.add_argument('--n_rollout', type=int, default=5)
+    parser.add_argument('--data', required=True)
+    parser.add_argument('--n_rollout', type=int, default=20)
     parser.add_argument('--c_puct', type=float, default=10)
     parser.add_argument('--max_atoms', type=int, default=20)
     parser.add_argument('--min_atoms', type=int, default=15)
@@ -126,21 +145,33 @@ if __name__ == '__main__':
     
     C_PUCT = args.c_puct
     MIN_ATOMS = args.min_atoms
+    if args.data == 'jnk3':
     
-#     with (args.data, 'r') as f:
-#         data = r.read()
-    data = """CC(=O)NCCC1=CNc2c1cc(OC)cc2CC(=O)NCCc1c[nH]c2ccc(OC)cc12
-    O1C=C[C@H]([C@H]1O2)c3c2cc(OC)c4c3OC(=O)C5=C4CCC(=O)5
-    OC[C@@H](O1)[C@@H](O)[C@H](O)[C@@H]2[C@@H]1c3c(O)c(OC)c(O)cc3C(=O)O2
-    OCCc1c(C)[n+](cs1)Cc2cnc(C)nc2N
-    COC(=O)[C@H](CCCCN)NC(=O)Nc1cc(OC)cc(C(C)(C)C)c1O
-    """.split() # => sample data for testing
+        jnk3_actives = read_active_data("./data/excape-db/jnk3.csv")
 
+        with open("./data/jnk3_rationale.csv", 'w') as f:
+            f.write("original_smiles,rationale_smiles,score\n")
 
-    print("smiles,rationale,score")
-    scoring_func = get_scoring_function(args.prop)
+            print("processing jnk3 data...")
+            scoring_func = get_scoring_function('jnk3')
+            for smi in enumerate(jnk3_actives,1):
+                print('(%s/%s)'%(i, len(jnk3_actives)), smi)
+                z = mcts(smi, scoring_func, n_rollout=args.n_rollout, max_atoms=args.max_atoms, prop_delta=args.prop_delta)
+                if z is not None:
+                    for rationale, score in z:
+                        f.write("%s,%s,%s\n" %(smi, rationale, score))
+    
+    elif args.data == 'gsk3b':
+        gsk3b_actives = read_active_data("./data/excape-db/gsk3b.csv")
 
-    for smi in data:
-        z = mcts(smi, scoring_func, n_rollout=args.n_rollout, max_atoms=args.max_atoms, prop_delta=args.prop_delta)
-        for rationale, score in zip(*z):
-            print("%s,%s,%s" %(smi, rationale, score))
+        with open("./data/gsk3b_rationale.csv", 'w') as f:
+            f.write("original_smiles,rationale_smiles,score\n")
+
+            print("processing gsk3b data...")
+            scoring_func = get_scoring_function('gsk3b')
+            for i, smi in enumerate(gsk3b_actives,1):
+                print('(%s/%s)'%(i, len(gsk3b_actives)), smi)
+                z = mcts(smi, scoring_func, n_rollout=args.n_rollout, max_atoms=args.max_atoms, prop_delta=args.prop_delta)
+                if z is not None:
+                    for rationale, score in z:
+                        f.write("%s,%s,%s\n" %(smi, rationale, score))
