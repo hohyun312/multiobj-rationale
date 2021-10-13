@@ -26,13 +26,13 @@ python get_excape.py
 
 
 
-## Rationale Extraction
+# Rationale Extraction
 
-The following command will extract rationales using MCTS and produce two files in `data` directory: `jnk3_rationale.csv`, `gsk3b_rationale.csv`.
+Following command will extract rationales using MCTS and produce two files in `data` directory: `jnk3_rationales.csv`, `gsk3b_rationales.csv`.
 
 ```
-python mcts.py --data jnk3
-python mcts.py --data gsk3b
+python mcts.py --prop jnk3 --out "./data/jnk3_rationales.csv"
+python mcts.py --prop gsk3b --out "./data/gsk3b_rationales.csv"
 ```
 
 To construct multi-property rationales, run the following.

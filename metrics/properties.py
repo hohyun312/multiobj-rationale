@@ -19,6 +19,10 @@ class GSK3BModel():
     def __call__(self, mol):
         fp = GSK3BModel.fingerprints_from_mol(mol)
         return self.clf.predict_proba(fp)[0, 1]
+    
+    def batch_predict(self, mols):
+        fps = np.vstack([GSK3BModel.fingerprints_from_mol(mol) for mol in mols])
+        return self.clf.predict_proba(fps)[:,1]
 
     @classmethod
     def fingerprints_from_mol(cls, mol):  # use ECFP4
@@ -40,6 +44,10 @@ class JNK3Model():
     def __call__(self, mol):
         fp = JNK3Model.fingerprints_from_mol(mol)
         return self.clf.predict_proba(fp)[0, 1]
+    
+    def batch_predict(self, mols):
+        fps = np.vstack([JNK3Model.fingerprints_from_mol(mol) for mol in mols])
+        return self.clf.predict_proba(fps)[:,1]
 
     @classmethod
     def fingerprints_from_mol(cls, mol):  # use ECFP4

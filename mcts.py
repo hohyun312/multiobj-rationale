@@ -51,7 +51,7 @@ class MCTSNode:
             self.smi = Chem.MolToSmiles(self.mol)
                         
     def Q(self):
-        return self.W / self.N if self.N > 0 else 0
+        return self.W / self.N if self.N > 0 else float("inf")
 
     def U(self, n):
         return C_PUCT * self.P * math.sqrt(n) / (1 + self.N)
@@ -135,7 +135,8 @@ if __name__ == '__main__':
     
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data', required=True)
+    parser.add_argument('--prop', required=True)
+    parser.add_argument('--out', required=True)
     parser.add_argument('--n_rollout', type=int, default=20)
     parser.add_argument('--c_puct', type=float, default=10)
     parser.add_argument('--max_atoms', type=int, default=20)
@@ -145,33 +146,27 @@ if __name__ == '__main__':
     
     C_PUCT = args.c_puct
     MIN_ATOMS = args.min_atoms
-    if args.data == 'jnk3':
     
-        jnk3_actives = read_active_data("./data/excape-db/jnk3.csv")
-
-        with open("./data/jnk3_rationale.csv", 'w') as f:
-            f.write("original_smiles,rationale_smiles,score\n")
-
-            print("processing jnk3 data...")
-            scoring_func = get_scoring_function('jnk3')
-            for smi in enumerate(jnk3_actives,1):
-                print('(%s/%s)'%(i, len(jnk3_actives)), smi)
-                z = mcts(smi, scoring_func, n_rollout=args.n_rollout, max_atoms=args.max_atoms, prop_delta=args.prop_delta)
-                if z is not None:
-                    for rationale, score in z:
-                        f.write("%s,%s,%s\n" %(smi, rationale, score))
+    if args.prop == 'jnk3':
+        print("processing jnk3 data...")
+        scoring_func = get_scoring_function('jnk3')
+        actives = read_active_data("./data/excape-db/jnk3.csv") 
+    elif args.prop == 'gsk3b':
+        print("processing gsk3b data...")
+        scoring_func = get_scoring_function('gsk3b')
+        actives = read_active_data("./data/excape-db/gsk3b.csv") 
+    else:
+        raise ValueError("--prop must be set either to jnk3 or gsk3b")
+        
+        
     
-    elif args.data == 'gsk3b':
-        gsk3b_actives = read_active_data("./data/excape-db/gsk3b.csv")
 
-        with open("./data/gsk3b_rationale.csv", 'w') as f:
-            f.write("original_smiles,rationale_smiles,score\n")
+    with open(args.out, 'w') as f: 
+        f.write("original_smiles,rationale_smiles,score\n")
 
-            print("processing gsk3b data...")
-            scoring_func = get_scoring_function('gsk3b')
-            for i, smi in enumerate(gsk3b_actives,1):
-                print('(%s/%s)'%(i, len(gsk3b_actives)), smi)
-                z = mcts(smi, scoring_func, n_rollout=args.n_rollout, max_atoms=args.max_atoms, prop_delta=args.prop_delta)
-                if z is not None:
-                    for rationale, score in z:
-                        f.write("%s,%s,%s\n" %(smi, rationale, score))
+        for i, smi in enumerate(actives,1):
+            print('(%s/%s)'%(i, len(actives)), smi)
+            z = mcts(smi, scoring_func, n_rollout=args.n_rollout, max_atoms=args.max_atoms, prop_delta=args.prop_delta)
+            if z is not None:
+                for rationale, score in z:
+                    f.write("%s,%s,%s\n" %(smi, rationale, score))

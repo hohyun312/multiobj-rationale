@@ -56,8 +56,8 @@ if __name__ == "__main__":
     lg.setLevel(rdkit.RDLogger.CRITICAL) # mute warnings
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--rationale1', default="./data/jnk3_rationale.csv")
-    parser.add_argument('--rationale2', default="./data/gsk3b_rationale.csv")
+    parser.add_argument('--rationale1', default="./data/jnk3_rationales.csv")
+    parser.add_argument('--rationale2', default="./data/gsk3b_rationales.csv")
     parser.add_argument('--output', default="./data/merged_rationales.csv")
     args = parser.parse_args()
 
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     with open(args.rationale2) as f:
         next(f) # skip header
         rationale2 = set(line.split(",")[1] for line in f)
-
+        
     with open(args.output, "w") as f:
         f.write("rationale1,rationale2,merged\n")
 
@@ -76,5 +76,7 @@ if __name__ == "__main__":
             for r2 in rationale2:
                 merged_list = merge_rationales(r1, r2)
 
-                for merged in merged_list:
-                    f.write("%s,%s,%s\n" %(r1, r2, merged))
+                for smi in merged_list:
+                    if Chem.MolFromSmiles(smi): # sanity check
+                        f.write("%s,%s,%s\n" %(r1, r2, smi))
+    print("finished")
