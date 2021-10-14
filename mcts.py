@@ -42,7 +42,7 @@ class MCTSNode:
         self.mol = mol
         self.children = []
         self.W = 0     # total action value
-        self.N = 1     # visit count
+        self.N = 0     # visit count
         self.P = P     # predicted property score
         
         if smiles:
